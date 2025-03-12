@@ -54,6 +54,12 @@ class YOLODataset(Dataset):
             image = augmentations[image]
             bboxes = augmentations[bboxes]
 
+        targets = [torch.zeros((self.num_anchors // 3, S, S, 6)) for S in self.S]
+
+        for box in bboxes: 
+            iou_anchors = iou(torch.tensor(box[2:4]), self.anchors)
+            anchor_indices = iou_anchors.argsort(descending=True, dim=0)
+
 
 
 
