@@ -30,12 +30,12 @@ class YOLODataset(Dataset):
         image_size=416,
         S=[13,26,52]
         C=20,
-        transformer=None,
+        transform=None,
     ):
         self.annotations = pd.read_csv(csv_file)
         self.img_dir = img_dir
         self.label_dir = label_dir
-        self.transformer = transformer
+        self.transform = transform
         self.S = S
         self.anchors = torch.tensor(anchors[0] + anchors[1] + anchors[2])  # for all 3 scales
         self.num_anchors = self.anchors.shape[0]
@@ -44,9 +44,19 @@ class YOLODataset(Dataset):
         self.ignore_iou_thresh = 0.5
 
     def __getitem__(self, index):
-        label_path = os.path.join(self.label_dir,  self.annotations.iloc[index, 1])
+        label_path = os.path.join(self.label_dir,  self.annotations.iloc[index, 1]) # Because 1 is the second column 
         bboxes = np.roll(np.loadtxt(fname=label_path, delimiter=" ", ndmin=2), 4, axis=1).tolist()
-        img_path = os.path.join()
+        img_path = os.path.join(self.img_dir, self.annotations.iloc[index, 0])
+        image = np.array(Image.open(img_path).convert("RGB"))
+
+        if self.transform:
+            augmentations = self.transform(image=image , bboxes=bboxes)
+            image = augmentations[image]
+            bboxes = augmentations[bboxes]
+
+
+
+
         return 
 
     def __len__(self):
