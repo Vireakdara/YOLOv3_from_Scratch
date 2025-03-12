@@ -56,14 +56,37 @@ class YOLODataset(Dataset):
 
         targets = [torch.zeros((self.num_anchors // 3, S, S, 6)) for S in self.S]
 
-        for box in bboxes: 
+        # Below assumes 3 scale predictions (as paper) and same num of anchors per scale
+        targets = [torch.zeros((self.num_anchors // 3, S, S, 6)) for S in self.S]
+        for box in bboxes:
             iou_anchors = iou(torch.tensor(box[2:4]), self.anchors)
             anchor_indices = iou_anchors.argsort(descending=True, dim=0)
+            x, y, width, height, class_label = box
+            has_anchor = [False] * 3  # each scale should have one anchor
+            for anchor_idx in anchor_indices:
+                scale_idx = anchor_idx // self.num_anchors_per_scale
+                anchor_on_scale = anchor_idx % self.num_anchors_per_scale
+                S = self.S[scale_idx]
+                i, j = int(S * y), int(S * x)  # which cell
+                anchor_taken = targets[scale_idx][anchor_on_scale, i, j, 0]
+                if not anchor_taken and not has_anchor[scale_idx]:
+                    targets[scale_idx][anchor_on_scale, i, j, 0] = 1
+                    x_cell, y_cell = S * x - j, S * y - i  # both between [0,1]
+                    width_cell, height_cell = (
+                        width * S,
+                        height * S,
+                    )  # can be greater than 1 since it's relative to cell
+                    box_coordinates = torch.tensor(
+                        [x_cell, y_cell, width_cell, height_cell]
+                    )
+                    targets[scale_idx][anchor_on_scale, i, j, 1:5] = box_coordinates
+                    targets[scale_idx][anchor_on_scale, i, j, 5] = int(class_label)
+                    has_anchor[scale_idx] = True
 
+                elif not anchor_taken and iou_anchors[anchor_idx] > self.ignore_iou_thresh:
+                    targets[scale_idx][anchor_on_scale, i, j, 0] = -1  # ignore prediction
 
-
-
-        return 
+        return image, tuple(targets)
 
     def __len__(self):
         return len(self.annotations)
